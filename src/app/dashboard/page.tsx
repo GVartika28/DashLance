@@ -3,7 +3,10 @@ import StatCard from "../../components/dashboard/StatCard";
 import TaskTable from "../../components/dashboard/TaskTable";
 import ProjectGrid from "../../components/dashboard/ProjectGrid";
 import ActivityFeed from "../../components/dashboard/ActivityFeed";
-import { headers } from "next/headers";
+import { getUserFromRequest } from "../../middleware/auth";
+import { getProjectsForUser } from "../../services/projectService";
+import { getTasks } from "../../services/taskService";
+import { redirect } from "next/navigation";
 
 type ApiProject = {
   _id: string;
@@ -34,31 +37,41 @@ export default async function DashboardPage() {
   let nowMs: number | null = null;
 
   try {
-    const headerList = await headers();
-    const host =
-      headerList.get("x-forwarded-host") ??
-      headerList.get("host") ??
-      "localhost:3000";
-    const proto = headerList.get("x-forwarded-proto") ?? "http";
-    const baseUrl = process.env.NEXTAUTH_URL ?? `${proto}://${host}`;
-    const cookie = headerList.get("cookie") ?? "";
-    const nowHeader = headerList.get("date");
-
-    const [tasksRes, projectsRes] = await Promise.all([
-      fetch(`${baseUrl}/api/tasks`, { cache: "no-store", headers: { cookie } }),
-      fetch(`${baseUrl}/api/projects`, { cache: "no-store", headers: { cookie } }),
-    ]);
-
-    const responseNowHeader =
-      tasksRes.headers.get("date") ?? projectsRes.headers.get("date") ?? nowHeader;
-    if (responseNowHeader) {
-      const parsedNowMs = Date.parse(responseNowHeader);
-      nowMs = Number.isNaN(parsedNowMs) ? null : parsedNowMs;
+    const user = await getUserFromRequest();
+    if (!user) {
+      redirect("/login");
     }
 
-    tasksData = tasksRes.ok ? await tasksRes.json() : { tasks: [] };
-    projectsData = projectsRes.ok ? await projectsRes.json() : { projects: [] };
-  } catch {
+    const projectsRaw = await getProjectsForUser(user._id.toString());
+    projectsData.projects = projectsRaw.map(p => ({
+      _id: p._id.toString(),
+      name: p.name,
+      description: p.description,
+      userRole: p.userRole as "ADMIN" | "MEMBER"
+    }));
+
+    const projectIds = projectsRaw.map(p => p._id.toString());
+    if (projectIds.length > 0) {
+      const tasksRaw = await getTasks({ projectId: { $in: projectIds } });
+      tasksData.tasks = tasksRaw.map(task => {
+        const val = typeof task.toJSON === 'function' ? task.toJSON() : task;
+        return {
+          _id: val._id.toString(),
+          title: val.title,
+          status: val.status,
+          priority: val.priority,
+          dueDate: val.dueDate?.toString(),
+          projectId: val.projectId ? {
+             _id: (val.projectId as any)._id?.toString() || val.projectId.toString(),
+             name: (val.projectId as any).name || (val.projectId as any).title || "Unassigned"
+          } : undefined
+        } as ApiTask;
+      });
+    }
+
+    nowMs = Date.now();
+  } catch (error) {
+    console.error("Dashboard error:", error);
     tasksData = { tasks: [] };
     projectsData = { projects: [] };
   }

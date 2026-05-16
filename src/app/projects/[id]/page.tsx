@@ -1,4 +1,7 @@
-import { headers } from "next/headers";
+import { getUserFromRequest } from "../../../middleware/auth";
+import { getProjectById } from "../../../services/projectService";
+import { getTasks } from "../../../services/taskService";
+import { redirect } from "next/navigation";
 import AppShell from "../../../components/layout/AppShell";
 import ProjectWorkspace from "../../../components/projects/ProjectWorkspace";
 import EmptyState from "../../../components/shared/EmptyState";
@@ -35,17 +38,6 @@ type ApiTask = {
   } | null;
 };
 
-async function getBaseUrl() {
-  const headerList = await headers();
-  const host =
-    headerList.get("x-forwarded-host") ??
-    headerList.get("host") ??
-    "localhost:3000";
-  const proto = headerList.get("x-forwarded-proto") ?? "http";
-
-  return process.env.NEXTAUTH_URL ?? `${proto}://${host}`;
-}
-
 export default async function ProjectDetailPage({
   params,
 }: {
@@ -56,27 +48,56 @@ export default async function ProjectDetailPage({
   let tasks: ApiTask[] = [];
 
   try {
-    const baseUrl = await getBaseUrl();
-    const headerList = await headers();
-    const cookie = headerList.get("cookie") ?? "";
+    const user = await getUserFromRequest();
+    if (!user) {
+      redirect("/login");
+    }
 
-    const [projectRes, tasksRes] = await Promise.all([
-      fetch(`${baseUrl}/api/projects/${id}`, {
-        cache: "no-store",
-        headers: { cookie },
-      }),
-      fetch(`${baseUrl}/api/projects/${id}/tasks`, {
-        cache: "no-store",
-        headers: { cookie },
-      }),
-    ]);
+    const rawProject = await getProjectById(id);
+    if (rawProject) {
+      const isMember = rawProject.members.some(m => (m.user as any)._id.toString() === user._id.toString());
+      if (isMember) {
+        project = {
+          ...rawProject,
+          _id: rawProject._id.toString(),
+          currentUserId: user._id.toString(),
+          userRole: rawProject.members.find(m => (m.user as any)._id.toString() === user._id.toString())?.role || null,
+          members: rawProject.members.map(m => {
+            const memberUser = m.user as any;
+            return {
+              memberId: m.memberId,
+              role: m.role,
+              user: {
+                _id: memberUser._id.toString(),
+                name: memberUser.name,
+                email: memberUser.email,
+                avatar: memberUser.avatar,
+              }
+            };
+          })
+        } as unknown as ApiProject;
 
-    const projectData = projectRes.ok ? await projectRes.json() : null;
-    const tasksData = tasksRes.ok ? await tasksRes.json() : { tasks: [] };
-
-    project = projectData?.project ?? null;
-    tasks = Array.isArray(tasksData.tasks) ? tasksData.tasks : [];
-  } catch {
+        const rawTasks = await getTasks({ projectId: id });
+        tasks = rawTasks.map(task => {
+          const val = typeof task.toJSON === 'function' ? task.toJSON() : task;
+          return {
+            _id: val._id.toString(),
+            title: val.title,
+            description: val.description,
+            status: val.status,
+            priority: val.priority,
+            dueDate: val.dueDate?.toString() || null,
+            assignedTo: val.assignedTo ? {
+              _id: (val.assignedTo as any)._id?.toString() || val.assignedTo.toString(),
+              name: (val.assignedTo as any).name,
+              email: (val.assignedTo as any).email
+            } : null
+          } as ApiTask;
+        });
+      }
+    }
+  } catch (error) {
+    console.error("Project details error:", error);
     project = null;
     tasks = [];
   }

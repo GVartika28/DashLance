@@ -3,7 +3,9 @@
 
 import AppShell from "../../components/layout/AppShell";
 import ProjectsClient from "../../components/projects/ProjectsClient";
-import { headers } from "next/headers";
+import { getUserFromRequest } from "../../middleware/auth";
+import { getProjectsForUser } from "../../services/projectService";
+import { redirect } from "next/navigation";
 
 type ApiProject = {
     _id: string;
@@ -12,32 +14,24 @@ type ApiProject = {
     userRole?: "ADMIN" | "MEMBER";
 };
 
-async function getBaseUrl() {
-    const headerList = await headers();
-    const host =
-        headerList.get("x-forwarded-host") ??
-        headerList.get("host") ??
-        "localhost:3000";
-    const proto = headerList.get("x-forwarded-proto") ?? "http";
-    return process.env.NEXTAUTH_URL ?? `${proto}://${host}`;
-}
-
 export default async function ProjectsPage() {
     let projects: ApiProject[] = [];
 
     try {
-        const baseUrl = await getBaseUrl();
-        const headerList = await headers();
-        const cookie = headerList.get("cookie") ?? "";
+        const user = await getUserFromRequest();
+        if (!user) {
+            redirect("/login");
+        }
 
-        const res = await fetch(`${baseUrl}/api/projects`, {
-            cache: "no-store",
-            headers: { cookie },
-        });
-
-        const data = res.ok ? await res.json() : { projects: [] };
-        projects = Array.isArray(data.projects) ? data.projects : [];
-    } catch {
+        const rawProjects = await getProjectsForUser(user._id.toString());
+        projects = rawProjects.map(p => ({
+            _id: p._id.toString(),
+            name: p.name,
+            description: p.description,
+            userRole: p.userRole as "ADMIN" | "MEMBER"
+        }));
+    } catch (error) {
+        console.error("Error fetching projects:", error);
         projects = [];
     }
 
