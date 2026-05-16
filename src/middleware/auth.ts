@@ -1,11 +1,18 @@
 import { getServerSession } from "next-auth";
+import { headers } from "next/headers";
 import connectToDatabase from "../lib/mongodb";
 import authOptions from "../lib/authOption";
 import User, { IUser } from "../models/User";
 
-export async function getUserFromRequest(req?: Request): Promise<IUser | null> {
-  void req;
-  const session = await getServerSession(authOptions);
+export async function getUserFromRequest(_req?: Request): Promise<IUser | null> {
+  // Pass the incoming request headers to getServerSession so it can correctly
+  // read the session cookie from the API route context (not just ambient headers).
+  const headerStore = await headers();
+  const session = await getServerSession(
+    { headers: Object.fromEntries(headerStore.entries()) } as Parameters<typeof getServerSession>[0],
+    undefined,
+    authOptions,
+  );
   const sessionUser = session?.user;
   if (!sessionUser?.id && !sessionUser?.email) return null;
 

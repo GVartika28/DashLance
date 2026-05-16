@@ -47,14 +47,11 @@ export default function CreateProjectModal({
       setDescription("");
       onClose();
 
-      if (data.project?._id) {
-        // Small delay to ensure DB write (ProjectMember) is committed before fetching the detail page
-        await new Promise((resolve) => setTimeout(resolve, 300));
-        router.push(`/projects/${data.project._id}`);
-      } else {
-        // No redirect — just refresh the projects list
-        router.refresh();
-      }
+      // Redirect to the projects list and refresh — this is reliable because:
+      // 1. No race condition with the server-side fetch on the detail page
+      // 2. The user sees the new project card and can open it naturally
+      router.push("/projects");
+      router.refresh();
     } catch (error) {
       setError(error instanceof Error ? error.message : "An error occurred");
     } finally {
