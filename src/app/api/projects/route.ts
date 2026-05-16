@@ -1,3 +1,4 @@
+import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getUserFromRequest } from "../../../middleware/auth";
 import {
@@ -31,34 +32,22 @@ const createProjectSchema = z
 export async function GET(req: Request) {
   const user = await getUserFromRequest(req);
   if (!user) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401,
-      headers: { "Content-Type": "application/json" },
-    });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
     const projects = await getProjectsForUser(user._id.toString());
-    return new Response(JSON.stringify({ projects }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
+    return NextResponse.json({ projects }, { status: 200 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Server error";
-    return new Response(JSON.stringify({ error: message }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    });
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
 export async function POST(req: Request) {
   const user = await getUserFromRequest(req);
   if (!user) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401,
-      headers: { "Content-Type": "application/json" },
-    });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
@@ -71,15 +60,9 @@ export async function POST(req: Request) {
       createdBy: user._id.toString(),
     });
 
-    return new Response(JSON.stringify({ project }), {
-      status: 201,
-      headers: { "Content-Type": "application/json" },
-    });
+    return NextResponse.json({ project }, { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Bad Request";
-    return new Response(JSON.stringify({ error: message }), {
-      status: 400,
-      headers: { "Content-Type": "application/json" },
-    });
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 }
