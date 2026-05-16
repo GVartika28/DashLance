@@ -1,6 +1,6 @@
-# TaskFlow - Project Ops Suite
+# DashLance - Project Ops Suite
 
-TaskFlow is a project management web app built with Next.js App Router, MongoDB, and NextAuth. It provides a clean team workspace for tracking projects, members, and tasks with role-based access control (RBAC).
+DashLance is a project management web app built with Next.js App Router, MongoDB, and NextAuth. It provides a clean team workspace for tracking projects, members, and tasks with role-based access control (RBAC).
 
 ## Features
 
