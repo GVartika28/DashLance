@@ -48,9 +48,13 @@ export default function CreateProjectModal({
       onClose();
 
       if (data.project?._id) {
+        // Small delay to ensure DB write (ProjectMember) is committed before fetching the detail page
+        await new Promise((resolve) => setTimeout(resolve, 300));
         router.push(`/projects/${data.project._id}`);
+      } else {
+        // No redirect — just refresh the projects list
+        router.refresh();
       }
-      router.refresh();
     } catch (error) {
       setError(error instanceof Error ? error.message : "An error occurred");
     } finally {
